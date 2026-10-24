@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .common import Finding, FormatError, ParseResult, result
+from .common import Finding, FormatError, ParseResult, metadata_signals, result
 
 
 def _subblocks(data: bytes, pos: int, limit: int) -> tuple[int, bytes]:
@@ -125,6 +125,8 @@ def parse(data: bytes, *, clean: bool, remove_provenance: bool) -> ParseResult:
                         warnings.append("GIF XMP application data remains in the output.")
             else:
                 out.extend(data[start:pos])
+            for signal in metadata_signals(app_data):
+                findings.append(Finding(signal, app_name, start, pos - start, "remove with the containing GIF extension"))
             continue
         # Unknown extensions are preserved; deleting an unknown block could break playback.
         pos, _ = _subblocks(data, pos, len(data))

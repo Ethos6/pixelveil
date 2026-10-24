@@ -89,7 +89,7 @@ class FormatCleaningTests(unittest.TestCase):
         self.assertNotIn(b"private-iptc", cleaned)
         self.assertNotIn(b"trailing-data", cleaned)
         self.assertEqual([item["kind"] for item in report.removed], [
-            "EXIF/XMP metadata", "Photoshop/IPTC metadata", "trailing bytes after JPEG EOI"
+            "EXIF metadata", "Photoshop/IPTC metadata", "trailing bytes after JPEG EOI"
         ])
 
     def test_jpeg_c2pa_removal_is_explicit(self) -> None:
@@ -148,8 +148,26 @@ class FormatCleaningTests(unittest.TestCase):
     def test_inspection_reports_categories_without_raw_values(self) -> None:
         scan = inspect_bytes(jpeg_fixture())
         rendered = repr(scan.to_dict())
-        self.assertIn("EXIF/XMP metadata", rendered)
+        self.assertIn("EXIF metadata", rendered)
         self.assertNotIn("private-gps", rendered)
+
+    def test_png_reports_ai_prompt_and_iptc_indicators_without_values(self) -> None:
+        signature = b"\x89PNG\r\n\x1a\n"
+        ihdr = (1).to_bytes(4, "big") + (1).to_bytes(4, "big") + b"\x08\x02\0\0\0"
+        payload = b"parameters\0secret prompt text trainedAlgorithmicMedia"
+        sample = signature + png_chunk(b"IHDR", ihdr) + png_chunk(b"tEXt", payload) + png_chunk(b"IDAT", b"pixels") + png_chunk(b"IEND", b"")
+        scan = inspect_bytes(sample)
+        rendered = repr(scan.to_dict())
+        kinds = [row["kind"] for row in scan.findings]
+        self.assertIn("AI-generation or provenance metadata indicator", kinds)
+        self.assertIn("IPTC digital-source declaration", kinds)
+        self.assertNotIn("secret prompt text", rendered)
+
+    def test_unknown_jpeg_app11_is_preserved_even_with_provenance_option(self) -> None:
+        data = b"\xff\xd8" + jpeg_segment(0xEB, b"unrelated JPEG extension") + jpeg_segment(0xDA, b"\x01\x01\0\0?\0") + b"pixels\xff\xd9"
+        cleaned, report = clean_bytes(data, remove_provenance=True)
+        self.assertIn(b"unrelated JPEG extension", cleaned)
+        self.assertFalse(any(item["container"] == "APP11" for item in report.removed))
 
     def test_unknown_format_is_rejected(self) -> None:
         with self.assertRaisesRegex(PixelVeilError, "unsupported image format"):

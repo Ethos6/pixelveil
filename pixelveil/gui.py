@@ -58,6 +58,23 @@ def launch_gui() -> None:
                 files.append(path)
                 file_list.insert("end", path.name)
 
+    def add_folder() -> None:
+        selected = filedialog.askdirectory(title="Choose an image folder")
+        if not selected:
+            return
+        folder = Path(selected)
+        candidates = sorted(
+            path for path in folder.rglob("*")
+            if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+            and ".cleaned." not in path.name
+        )
+        known = {path.resolve() for path in files}
+        for path in candidates:
+            if path.resolve() not in known:
+                files.append(path)
+                file_list.insert("end", str(path.relative_to(folder)))
+                known.add(path.resolve())
+
     def choose_output() -> None:
         selected = filedialog.askdirectory(title="Choose output folder")
         if selected:
@@ -93,7 +110,8 @@ def launch_gui() -> None:
                 log_line(f"{path.name}: error: {exc}")
 
     ttk.Button(buttons, text="Add images…", command=add_files).pack(side="left")
-    ttk.Button(buttons, text="Choose output…", command=choose_output).pack(side="left", padx=6)
+    ttk.Button(buttons, text="Add folder…", command=add_folder).pack(side="left", padx=6)
+    ttk.Button(buttons, text="Choose output…", command=choose_output).pack(side="left")
     ttk.Button(buttons, text="Inspect", command=inspect_selected).pack(side="left", padx=6)
     ttk.Button(buttons, text="Clean copies", command=clean_selected).pack(side="right")
     root.mainloop()

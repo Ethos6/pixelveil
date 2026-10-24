@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .common import Finding, FormatError, ParseResult, result
+from .common import Finding, FormatError, ParseResult, metadata_signals, result
 
 
 def parse(data: bytes, *, clean: bool, remove_provenance: bool) -> ParseResult:
@@ -41,6 +41,9 @@ def parse(data: bytes, *, clean: bool, remove_provenance: bool) -> ParseResult:
                 chunks.pop()
             elif kind == b"C2PA":
                 warnings.append("C2PA provenance is preserved unless --remove-provenance is selected.")
+        if kind in (b"EXIF", b"XMP "):
+            for signal in metadata_signals(payload):
+                findings.append(Finding(signal, kind.decode("ascii"), start, len(data[start:end]), "remove with the containing metadata chunk"))
         i = end
 
     out_chunks = [chunk for _, chunk, _, _ in chunks]

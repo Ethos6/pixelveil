@@ -3,6 +3,26 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+AI_METADATA_MARKERS = (
+    b"parameters", b"workflow", b"comfyui", b"stable diffusion", b"invokeai",
+    b"novelai", b"midjourney", b"trainedalgorithmicmedia",
+    b"compositewithtrainedalgorithmicmedia",
+)
+
+
+def metadata_signals(payload: bytes) -> tuple[str, ...]:
+    """Identify known metadata labels without returning embedded values."""
+    lowered = payload[:1_048_576].lower()
+    signals: list[str] = []
+    if any(marker in lowered for marker in AI_METADATA_MARKERS):
+        signals.append("AI-generation or provenance metadata indicator")
+    if b"trainedalgorithmicmedia" in lowered or b"compositewithtrainedalgorithmicmedia" in lowered:
+        signals.append("IPTC digital-source declaration")
+    if b"c2pa" in lowered or b"jumbf" in lowered:
+        signals.append("C2PA/JUMBF provenance indicator")
+    return tuple(signals)
+
+
 class FormatError(ValueError):
     pass
 
