@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import zlib
 
-from .common import Finding, FormatError, ParseResult, result
+from .common import Finding, FormatError, ParseResult, metadata_signals, result
 
 
 def _png_crc(kind: bytes, payload: bytes) -> int:
@@ -10,6 +10,31 @@ def _png_crc(kind: bytes, payload: bytes) -> int:
 
 SIGNATURE = b"\x89PNG\r\n\x1a\n"
 PRIVATE_METADATA = {b"eXIf": "EXIF metadata", b"tEXt": "PNG text metadata", b"zTXt": "compressed PNG text metadata", b"iTXt": "international PNG text/XMP metadata", b"tIME": "PNG modification timestamp"}
+def _inflate_limited(data: bytes) -> bytes:
+    decoder = zlib.decompressobj()
+    return decoder.decompress(data, 1_048_576)
+
+
+def _metadata_signals(kind: bytes, payload: bytes) -> tuple[str, ...]:
+    """Return category labels only; never include embedded metadata values in reports."""
+    sample = payload
+    if kind == b"zTXt":
+        separator = payload.find(b"\0")
+        if separator >= 0 and separator + 2 <= len(payload):
+            try:
+                sample = payload[:separator] + _inflate_limited(payload[separator + 2 :])
+            except zlib.error:
+                sample = payload[:1_048_576]
+    elif kind == b"iTXt":
+        # Keyword, compression flag/method, language tag and translated keyword precede the text.
+        parts = payload.split(b"\0", 5)
+        sample = b" ".join(parts)
+        if len(parts) == 6 and len(parts[1]) and parts[1][:1] == b"\x01":
+            try:
+                sample = b" ".join(parts[:5]) + _inflate_limited(parts[5])
+            except zlib.error:
+                pass
+    return metadata_signals(sample)
 
 
 def parse(data: bytes, *, clean: bool, remove_provenance: bool) -> ParseResult:
@@ -59,6 +84,12 @@ def parse(data: bytes, *, clean: bool, remove_provenance: bool) -> ParseResult:
                 out.extend(chunk)
         else:
             out.extend(chunk)
+
+        # PNG text and EXIF containers can carry AI prompts, workflow details, or
+        # IPTC digital-source declarations. Report only a category, never values.
+        if kind in (b"tEXt", b"zTXt", b"iTXt", b"eXIf"):
+            for signal in _metadata_signals(kind, payload):
+                findings.append(Finding(signal, kind.decode("ascii"), start, len(chunk), "remove with the containing metadata chunk"))
 
         if kind in (b"IDAT", b"fdAT"):
             image_payload.extend(payload)
