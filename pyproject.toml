@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pixelveil"
+version = "0.1.0"
+description = "Offline, lossless image metadata inspection and cleaning"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Ethos6" }]
+dependencies = []
+
+[project.optional-dependencies]
+test = ["Pillow>=10.0"]
+
+[project.scripts]
+pixelveil = "pixelveil.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["pixelveil*"]
