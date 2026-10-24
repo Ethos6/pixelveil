@@ -1,0 +1,82 @@
+# PixelVeil
+
+<p align="center">
+  <img src="assets/pixelveil-mark.svg" width="128" alt="PixelVeil mark">
+</p>
+
+<p align="center"><strong>Image metadata inspection and cleaning that stays on your device.</strong></p>
+
+<p align="center">
+  <img src="assets/how-it-works.svg" alt="PixelVeil reads an image container, removes selected metadata chunks, verifies the encoded image payload, and writes a new copy">
+</p>
+
+PixelVeil removes common privacy metadata from JPEG, PNG, WebP, and GIF files without re-encoding their image data. It is a small Python application with no runtime package dependencies. The optional desktop interface uses Tkinter; the command line works without a graphical desktop.
+
+## What it does
+
+- Inspects recognized metadata categories without printing the stored values.
+- Removes common EXIF, XMP, IPTC, text/comment, and modification-time containers.
+- Preserves color profiles and content provenance by default.
+- Removes detected C2PA provenance only after an explicit `--remove-provenance` choice.
+- Writes a separate output file, refuses to overwrite, and verifies that the encoded image payload hash is unchanged.
+- Handles images locally; it does not make network requests or upload files.
+
+## Quick start
+
+Python 3.10 or later is required.
+
+```bash
+python -m pip install .
+pixelveil inspect photo.jpg
+pixelveil clean photo.jpg
+```
+
+The cleaned file is created next to the source as `photo.cleaned.jpg`. To choose a folder:
+
+```bash
+pixelveil clean photo.jpg --output-dir cleaned/
+```
+
+To also remove the C2PA/content provenance block where recognized:
+
+```bash
+pixelveil clean photo.jpg --remove-provenance
+```
+
+This removes authenticity and edit-history information. JPEG uses APP11 for C2PA, but that marker can also contain other application data; PixelVeil warns that the explicit removal option drops all APP11 segments.
+
+Open the optional desktop interface with:
+
+```bash
+pixelveil gui
+```
+
+Tkinter must be available in the Python installation for the desktop interface.
+
+## How it works
+
+1. Read the file and identify its container format.
+2. Parse supported metadata markers while preserving unknown structures and color profiles.
+3. Create a new cleaned copy; the source file is left intact.
+4. Parse the copy again and compare SHA-256 hashes of the compressed image payloads.
+
+PixelVeil does not decode and re-encode image pixels as part of cleaning. Its verification means the encoded image payload bytes were unchanged; the test suite also decodes real sample files and checks their pixel values. See the [format support and limits](docs/format-support.md) for precise behavior.
+
+## Tests
+
+The runtime is dependency-free. To install the optional test dependency and run the suite:
+
+```bash
+python -m pip install -e '.[test]'
+python -m unittest discover -s tests -v
+```
+
+GitHub Actions runs the suite on Python 3.10–3.13 across Ubuntu, macOS, and Windows.
+
+## Limits
+
+PixelVeil removes recognized metadata containers. It cannot reliably identify every private or vendor-specific field, unknown container chunk, data appended by a specialized tool, visual watermark, steganographic payload, or identifying content visible in the image itself. Some metadata-like chunks are intentionally preserved for compatibility. The tool is not an anonymity guarantee. Keep your original files and review the reported remaining markers for sensitive uses.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
